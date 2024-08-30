@@ -1,0 +1,14 @@
+gspread
+pandas
+oauth2client
+arxiv
+openai
+python-dotenv
+tweepy
+nest_asyncio
+beautifulsoup4
+playwright
+requests
+pymupdf
+tiktoken
+Pillow
