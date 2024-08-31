@@ -1,3 +1,3 @@
-# bioarxiv_gpt_gpt
+# bioarxiv_gpt
 
 https://x.com/bioRxivGPT
