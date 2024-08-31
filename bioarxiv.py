@@ -1,176 +1,183 @@
-##now i need to do the ai part
+from datetime import datetime, timedelta
+import pytz
 import requests
-import fitz  # PyMuPDF
-import tiktoken
-from openai import OpenAI
-import os
-import json
-from dotenv import load_dotenv
-from PIL import Image, ImageDraw, ImageFont
-import textwrap
-from datetime import datetime
-from github import process_paper
+from bs4 import BeautifulSoup
+import asyncio
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+import nest_asyncio
 
-# Load environment variables from .env file
-load_dotenv()
+# Apply the nest_asyncio patch
+nest_asyncio.apply()
 
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Function to get date from yesterday ET time
+def get_yesterday_date():
+    eastern = pytz.timezone('US/Eastern')
+    yesterday = datetime.now(eastern) - timedelta(days=1)
+    return yesterday.strftime('%Y-%m-%d')
 
-def download_and_extract_paper_info(paper_info, token_limit=120000, model="gpt-3.5-turbo"):
-    pdf_url = paper_info['url']
-    
-    # Ensure the URL ends with .full.pdf
-    if not pdf_url.endswith(".full.pdf"):
-        pdf_url += ".full.pdf"
-    
-    response = requests.get(pdf_url)
-    if response.status_code == 200:
-        pdf_content = response.content
+yesterday_date = get_yesterday_date()
+print("Yesterday's date in ET:", yesterday_date)
+
+# Function to iterate through biorxiv pages and collect paper URLs
+def iterate_biorxiv_pages():
+    page_data = []
+    page_number = 0
+    while True:
+        url = f"https://www.biorxiv.org/content/early/recent?page={page_number}"
+        print(url)
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
         
-        doc = fitz.open(stream=pdf_content, filetype="pdf")
-        text = ""
-        encoding = tiktoken.encoding_for_model(model)
+        # Get the date based on the X path
+        date_element = soup.select_one('#block-system-main > div > div > div > div:nth-child(2) > div:nth-child(1) > div > div > div > div > div:nth-child(1) > h3')
+        if not date_element:
+            break
+        date_text = date_element.get_text(strip=True)
         
-        for page in doc:
-            page_text = page.get_text()
-            text += page_text
+        # Reformat the date to match the format of our yesterday_date
+        page_date = datetime.strptime(date_text, '%B %d, %Y').strftime('%Y-%m-%d')
+
+        print("page date: ", page_date)
+        
+        # Check if the date is older than the target date
+        if page_date < yesterday_date:
+            break
+        
+        # Skip the page if the date is newer than the target date
+        if page_date > yesterday_date:
+            page_number += 1
+            continue
+
+        # Extract all the URLs from the page
+        article_blocks = soup.find_all('div', class_='highwire-cite highwire-cite-highwire-article highwire-citation-biorxiv-article-pap-list-overline clearfix')
+        
+        for block in article_blocks:
+            title_element = block.find('span', class_='highwire-cite-title')
+            if title_element:
+                link_element = title_element.find('a', class_='highwire-cite-linked-title')
+                if link_element and 'href' in link_element.attrs:
+                    paper_url = "https://www.biorxiv.org" + link_element['href']
+                    page_data.append(paper_url)
+        
+        page_number += 1
+    return page_data
+
+# Initialize an empty list to store the dictionaries
+tweet_data_list = []
+
+# Asynchronous function to fetch and parse a single URL
+async def fetch_and_parse(url, context):
+    print(f"Fetching URL: {url}")
+    retries = 3
+    for attempt in range(retries):
+        try:
+            page = await context.new_page()
+            await page.goto(url, timeout=60000)  # Wait up to 60 seconds for the page to load
+            await page.wait_for_selector('#count_twitter', timeout=60000)  # Wait up to 60 seconds for the element
+            content = await page.content()
+            await page.close()
+            break  # Exit the retry loop if successful
+        except PlaywrightTimeoutError as e:
+            print(f"Timeout error on {url}: {e}")
+        except Exception as e:
+            print(f"Error on {url}: {e}")
+        if attempt < retries - 1:
+            print(f"Retrying {url} (attempt {attempt + 1}/{retries})")
+        else:
+            print(f"Failed to fetch {url} after {retries} attempts")
+            return
+
+    soup = BeautifulSoup(content, 'html.parser')
+    
+    # Extract the date from the page
+    date_element = soup.select_one('#block-system-main > div > div > div > div > div:nth-child(2) > div > div > div:nth-child(3) > div')
+    if date_element:
+        date_text = date_element.get_text(strip=True)
+        # Remove the 'Posted\xa0' prefix if it exists
+        if date_text.startswith('Posted\xa0'):
+            date_text = date_text.replace('Posted\xa0', '')
+        # Remove the period at the end of the date string
+        if date_text.endswith('.'):
+            date_text = date_text[:-1]
+        try:
+            page_date = datetime.strptime(date_text, '%B %d, %Y').strftime('%Y-%m-%d')
+            print(f"Parsed page date: {page_date}")  # Debug print
+        except ValueError as e:
+            print(f"Error parsing date on {url}: {e}")
+            return
+        
+        # Check if the date matches the target date
+        if page_date == yesterday_date:
+            print(f"Date matches target date: {page_date}")  # Debug print
             
-            tokens = encoding.encode(text)
-            if len(tokens) > token_limit:
-                text = encoding.decode(tokens[:token_limit])
-                break
-        twitter_handles = process_paper(text)
-        # this will either be an empty list or a list with twitter handles 
-        return {
-            "title": paper_info['title'],
-            "publish_date": datetime.now().strftime('%Y-%m-%d'),  # Assuming current date as publish date
-            "full_text": text,
-            "twitter_handles": twitter_handles,
-            "subject_area": paper_info['subject_area']  # Add subject area to the returned dictionary
-        }
+            # Extract the number of tweets using a CSS selector
+            tweet_element = soup.select_one('#count_twitter')
+            tweet_count = tweet_element.get_text(strip=True) if tweet_element else "0"
+            print(f"Extracted tweet count: {tweet_count}")  # Debug print
+            
+            # Extract the abstract
+            abstract_element = soup.select_one('#p-3')
+            abstract = abstract_element.get_text(strip=True) if abstract_element else "N/A"
+            print(f"Extracted abstract: {abstract}")  # Debug print
+            
+            # Extract the title
+            title_element = soup.select_one('#page-title')
+            title = title_element.get_text(strip=True) if title_element else "N/A"
+            print(f"Extracted title: {title}")  # Debug print
+            
+            # Extract the subject area
+            subject_area_elements = soup.select('#block-system-main > div > div > div > div > div:nth-child(2) > div > div > div:nth-child(11) > div > div > div > ul > li > span > a')
+            subject_area = ", ".join([element.get_text(strip=True) for element in subject_area_elements]) if subject_area_elements else "N/A"
+            print(f"Extracted subject area: {subject_area}")  # Debug print
+            
+            # Create a dictionary with the extracted data
+            tweet_data = {
+                "url": url,
+                "tweet_count": tweet_count,
+                "abstract": abstract,
+                "title": title,
+                "subject_area": subject_area
+            }
+            
+            # Add the dictionary to the list
+            tweet_data_list.append(tweet_data)
+        else:
+            print(f"Date does not match target date on {url}")
     else:
-        print(f"Failed to download paper. Status code: {response.status_code}")
-        return None
+        print(f"Date element not found on {url}")
 
-def summarize_text(text):
-    prompt = f""" 
-    You are getting the text version of an arxiv paper your goal is to provide a summary of the paper by providing bullet points which summarise the paper. 
-
-    It should be exact three bullet points which summarise the paper. Return your response in JSON format where the keys are the bullet points and the values are the summaries of the bullet points as following:
-
-    {{
-    "bullet_point_1": "content",
-    "bullet_point_2": "content",
-    "bullet_point_3": "content"
-    }}
-
-    Here is the text of the paper:
-
-    {text}
-    """
-
-    completion = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        response_format={ "type": "json_object" },
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.0,
-    )
-
-    summary = completion.choices[0].message.content
-    return summary
-
-def add_text_to_image(background_path, title, text_content, subject_area, output_path="output.jpg", scale_factor=2, offset=20):
-    with Image.open(background_path) as img:
-        width, height = img.size
-        background = img.resize((width * scale_factor, height * scale_factor), Image.LANCZOS)
-    
-    draw = ImageDraw.Draw(background)
-
-    title_font = ImageFont.truetype("fonts/Inika-Regular.ttf", 35 * scale_factor)
-    content_font = ImageFont.truetype("fonts/Inika-Regular.ttf", 20 * scale_factor)
-    date_font = ImageFont.truetype("fonts/Inika-Regular.ttf", 20 * scale_factor)
-    arxiv_font = ImageFont.truetype("fonts/Larabieb.ttf", 50 * scale_factor)
-
-    margin = 50 * scale_factor
-    max_width = background.width - (2 * margin)
-
-    # Dynamically calculate the width for wrapping the title
-    wrapped_title = textwrap.wrap(title, width=int(max_width / (35 * scale_factor * 0.6)))
-    y_text = 50 * scale_factor
-
-    for line in wrapped_title:
-        bbox = title_font.getbbox(line)
-        line_width = bbox[2] - bbox[0]
-        line_height = bbox[3] - bbox[1]
-        x_text = (background.width - line_width) // 2
-        draw.text((x_text, y_text), line, font=title_font, fill=(0, 0, 0))
-        y_text += line_height + (10 * scale_factor)
-
-    bullet_points = json.loads(text_content)
-    total_height = sum(len(textwrap.wrap(value, width=90)) * (25 * scale_factor) + (20 * scale_factor) for value in bullet_points.values())
-    y = (background.height - total_height) // 2
-    bullet_width = content_font.getbbox("• ")[2]
-    max_content_width = max(max(content_font.getbbox(line)[2] for line in textwrap.wrap(value, width=90)) for value in bullet_points.values())
-    bullet_start_x = (background.width - max_content_width - bullet_width) // 2
-
-    for value in bullet_points.values():
-        wrapped_text = textwrap.wrap(value, width=90)
+# Main asynchronous function to handle multiple requests in batches
+async def main(urls, batch_size=50, delay=5):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
         
-        for i, line in enumerate(wrapped_text):
-            if i == 0:
-                draw.text((bullet_start_x, y), "•", font=content_font, fill=(0, 0, 0))
-                draw.text((bullet_start_x + bullet_width, y), line, font=content_font, fill=(0, 0, 0))
-            else:
-                draw.text((bullet_start_x + bullet_width, y + (25 * scale_factor * i)), line, font=content_font, fill=(0, 0, 0))
+        for i in range(0, len(urls), batch_size):
+            batch = urls[i:i + batch_size]
+            print(f"Processing batch: {batch}")
+            context = await browser.new_context()
+            tasks = [fetch_and_parse(url, context) for url in batch]
+            await asyncio.gather(*tasks)
+            await context.close()
+            await asyncio.sleep(delay)  # Add a delay between batches
         
-        y += (25 * scale_factor * len(wrapped_text)) + (20 * scale_factor)
+        await browser.close()
 
-    subject_area_text = f"Subject Area: {subject_area}"
-    subject_area_bbox = date_font.getbbox(subject_area_text)
-    subject_area_height = subject_area_bbox[3] - subject_area_bbox[1]
-    draw.text((margin, background.height - margin - subject_area_height - offset), subject_area_text, font=date_font, fill=(0, 0, 0))
+# Function to find the top ten URLs with the most tweets
+def get_top_ten_tweets(tweet_data_list):
+    # Sort the list in descending order based on tweet count
+    sorted_tweets = sorted(tweet_data_list, key=lambda x: int(x["tweet_count"]), reverse=True)
+    # Select the top ten URLs with the most tweets
+    top_ten_tweets = sorted_tweets[:10]
+    return top_ten_tweets
 
-    arxiv_text = "@bioRxivGPT"
-    arxiv_bbox = arxiv_font.getbbox(arxiv_text)
-    arxiv_width = arxiv_bbox[2] - arxiv_bbox[0]
-    arxiv_height = arxiv_bbox[3] - arxiv_bbox[1]
-    arxiv_x = background.width - margin - arxiv_width
-    arxiv_y = background.height - margin - arxiv_height - offset
+# Main function to run the entire process
+def get_trending_urls():
+    urls = iterate_biorxiv_pages()
+    asyncio.run(main(urls))
+    return get_top_ten_tweets(tweet_data_list)
 
-    pre_x_text = "@bio"
-    pre_x_width = arxiv_font.getbbox(pre_x_text)[2]
-    draw.text((arxiv_x, arxiv_y), pre_x_text, font=arxiv_font, fill=(0, 0, 0))
-
-    x_text = "R"
-    x_width = arxiv_font.getbbox(x_text)[2]
-    draw.text((arxiv_x + pre_x_width, arxiv_y), x_text, font=arxiv_font, fill="#B31B1B")
-
-    post_x_text = "ivGPT"
-    draw.text((arxiv_x + pre_x_width + x_width, arxiv_y), post_x_text, font=arxiv_font, fill=(0, 0, 0))
-
-    background.save(output_path, quality=95)
-    print(f"High-resolution image saved as {output_path}")
-
-def create_image_from_paper_info(paper_info, background_path="background.jpg", output_path="output.jpg"):
-    paper_details = download_and_extract_paper_info(paper_info)
-    if paper_details:
-        title = paper_details.get("title")
-        subject_area = paper_details.get("subject_area")
-        full_text = paper_details.get("full_text")
-        summary = summarize_text(full_text)
-        add_text_to_image(background_path, title, summary, subject_area, output_path)
-        twitter_handles = paper_details.get("twitter_handles")
-    return output_path, twitter_handles
-
-# Example usage
-# if __name__ == "__main__":
-#     paper_info = {
-#         'url': 'https://www.biorxiv.org/content/10.1101/2024.05.08.593115v2',
-#         'tweet_count': '37',
-#         'abstract': 'The authors have declared no competing interest.',
-#         'title': 'Plasmodesmal closure elicits stress responses',
-#         'subject_area': 'Plant Biology'
-#     }
-#     create_image_from_paper_info(paper_info)
+if __name__ == "__main__":
+    top_ten_tweets = get_trending_urls()
+    print("Top ten URLs with the most tweets:")
+    for data in top_ten_tweets:
+        print(f"URL: {data['url']}, Tweets: {data['tweet_count']}, Title: {data['title']}, Abstract: {data['abstract']}, Subject Area: {data['subject_area']}")
