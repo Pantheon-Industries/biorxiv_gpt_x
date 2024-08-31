@@ -45,7 +45,8 @@ def download_and_extract_paper_info(paper_info, token_limit=120000, model="gpt-3
             "title": paper_info['title'],
             "publish_date": datetime.now().strftime('%Y-%m-%d'),  # Assuming current date as publish date
             "full_text": text,
-            "twitter_handles": twitter_handles
+            "twitter_handles": twitter_handles,
+            "subject_area": paper_info['subject_area']  # Add subject area to the returned dictionary
         }
     else:
         print(f"Failed to download paper. Status code: {response.status_code}")
@@ -80,7 +81,7 @@ def summarize_text(text):
     summary = completion.choices[0].message.content
     return summary
 
-def add_text_to_image(background_path, title, text_content, publish_date, output_path="output.jpg", scale_factor=2, offset=20):
+def add_text_to_image(background_path, title, text_content, subject_area, output_path="output.jpg", scale_factor=2, offset=20):
     with Image.open(background_path) as img:
         width, height = img.size
         background = img.resize((width * scale_factor, height * scale_factor), Image.LANCZOS)
@@ -126,27 +127,27 @@ def add_text_to_image(background_path, title, text_content, publish_date, output
         
         y += (25 * scale_factor * len(wrapped_text)) + (20 * scale_factor)
 
-    date_text = f"Published: {publish_date}"
-    date_bbox = date_font.getbbox(date_text)
-    date_height = date_bbox[3] - date_bbox[1]
-    draw.text((margin, background.height - margin - date_height - offset), date_text, font=date_font, fill=(0, 0, 0))
+    subject_area_text = f"Subject Area: {subject_area}"
+    subject_area_bbox = date_font.getbbox(subject_area_text)
+    subject_area_height = subject_area_bbox[3] - subject_area_bbox[1]
+    draw.text((margin, background.height - margin - subject_area_height - offset), subject_area_text, font=date_font, fill=(0, 0, 0))
 
-    arxiv_text = "@arXivGPT"
+    arxiv_text = "@bioRxivGPT"
     arxiv_bbox = arxiv_font.getbbox(arxiv_text)
     arxiv_width = arxiv_bbox[2] - arxiv_bbox[0]
     arxiv_height = arxiv_bbox[3] - arxiv_bbox[1]
     arxiv_x = background.width - margin - arxiv_width
     arxiv_y = background.height - margin - arxiv_height - offset
 
-    pre_x_text = "@ar"
+    pre_x_text = "@bio"
     pre_x_width = arxiv_font.getbbox(pre_x_text)[2]
     draw.text((arxiv_x, arxiv_y), pre_x_text, font=arxiv_font, fill=(0, 0, 0))
 
-    x_text = "X"
+    x_text = "R"
     x_width = arxiv_font.getbbox(x_text)[2]
     draw.text((arxiv_x + pre_x_width, arxiv_y), x_text, font=arxiv_font, fill="#B31B1B")
 
-    post_x_text = "ivGPT"
+    post_x_text = "xivGPT"
     draw.text((arxiv_x + pre_x_width + x_width, arxiv_y), post_x_text, font=arxiv_font, fill=(0, 0, 0))
 
     background.save(output_path, quality=95)
@@ -156,10 +157,10 @@ def create_image_from_paper_info(paper_info, background_path="background.jpg", o
     paper_details = download_and_extract_paper_info(paper_info)
     if paper_details:
         title = paper_details.get("title")
-        publish_date = paper_details.get("publish_date")
+        subject_area = paper_details.get("subject_area")
         full_text = paper_details.get("full_text")
         summary = summarize_text(full_text)
-        add_text_to_image(background_path, title, summary, publish_date, output_path)
+        add_text_to_image(background_path, title, summary, subject_area, output_path)
         twitter_handles = paper_details.get("twitter_handles")
     return output_path, twitter_handles
 
