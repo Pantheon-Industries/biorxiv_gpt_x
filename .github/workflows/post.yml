@@ -1,9 +1,9 @@
 name: Run Main Script
 
 on:
-#  workflow_dispatch:  # Allows manual triggering of the workflow
-#  schedule:
-#    - cron: '0 18 * * *'  # This is 6:00 PM UTC, which is 10:00 AM PST
+  workflow_dispatch:  # Allows manual triggering of the workflow
+  schedule:
+    - cron: '1 5 * * *'  # This is 12:01 AM ET
 
 jobs:
   run-main:
