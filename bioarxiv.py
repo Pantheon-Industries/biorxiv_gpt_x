@@ -109,20 +109,38 @@ async def fetch_and_parse(url, context):
         # Check if the date matches the target date
         if page_date == yesterday_date:
             print(f"Date matches target date: {page_date}")  # Debug print
+            
             # Extract the number of tweets using a CSS selector
             tweet_element = soup.select_one('#count_twitter')
-            print("tweet_element: ", tweet_element)  # Debug print
-            if tweet_element:
-                tweet_count = tweet_element.get_text(strip=True)
-                print(f"Extracted tweet count: {tweet_count}")  # Debug print
-                
-                # Create a dictionary with the URL as key and tweet count as value
-                tweet_data = {url: tweet_count}
-                
-                # Add the dictionary to the list
-                tweet_data_list.append(tweet_data)
-            else:
-                print(f"Tweet element not found on {url}")
+            tweet_count = tweet_element.get_text(strip=True) if tweet_element else "0"
+            print(f"Extracted tweet count: {tweet_count}")  # Debug print
+            
+            # Extract the abstract
+            abstract_element = soup.select_one('#p-3')
+            abstract = abstract_element.get_text(strip=True) if abstract_element else "N/A"
+            print(f"Extracted abstract: {abstract}")  # Debug print
+            
+            # Extract the title
+            title_element = soup.select_one('#page-title')
+            title = title_element.get_text(strip=True) if title_element else "N/A"
+            print(f"Extracted title: {title}")  # Debug print
+            
+            # Extract the subject area
+            subject_area_elements = soup.select('#block-system-main > div > div > div > div > div:nth-child(2) > div > div > div:nth-child(11) > div > div > div > ul > li > span > a')
+            subject_area = ", ".join([element.get_text(strip=True) for element in subject_area_elements]) if subject_area_elements else "N/A"
+            print(f"Extracted subject area: {subject_area}")  # Debug print
+            
+            # Create a dictionary with the extracted data
+            tweet_data = {
+                "url": url,
+                "tweet_count": tweet_count,
+                "abstract": abstract,
+                "title": title,
+                "subject_area": subject_area
+            }
+            
+            # Add the dictionary to the list
+            tweet_data_list.append(tweet_data)
         else:
             print(f"Date does not match target date on {url}")
     else:
@@ -146,17 +164,10 @@ async def main(urls, batch_size=50, delay=5):
 
 # Function to find the top ten URLs with the most tweets
 def get_top_ten_tweets(tweet_data_list):
-    top_ten_tweets = []
-    
-    # Flatten the list of dictionaries into a single list of tuples (url, tweet_count)
-    flattened_tweets = [(url, int(tweet_count)) for data in tweet_data_list for url, tweet_count in data.items()]
-    
     # Sort the list in descending order based on tweet count
-    sorted_tweets = sorted(flattened_tweets, key=lambda x: x[1], reverse=True)
-    
+    sorted_tweets = sorted(tweet_data_list, key=lambda x: int(x["tweet_count"]), reverse=True)
     # Select the top ten URLs with the most tweets
     top_ten_tweets = sorted_tweets[:10]
-    
     return top_ten_tweets
 
 # Main function to run the entire process
@@ -168,5 +179,5 @@ def get_trending_urls():
 if __name__ == "__main__":
     top_ten_tweets = get_trending_urls()
     print("Top ten URLs with the most tweets:")
-    for url, tweet_count in top_ten_tweets:
-        print(f"URL: {url}, Tweets: {tweet_count}")
+    for data in top_ten_tweets:
+        print(f"URL: {data['url']}, Tweets: {data['tweet_count']}, Title: {data['title']}, Abstract: {data['abstract']}, Subject Area: {data['subject_area']}")
