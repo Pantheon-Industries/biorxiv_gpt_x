@@ -7,7 +7,9 @@ from post import post_tweet
 
 async def main():
     top_ten_tweets = get_trending_urls()
+    #above is always an empty list, this shouldnt be the cas
     print("top_ten_tweets", top_ten_tweets)
+    return  # Stop execution of the program
 
     num_tweets = len(top_ten_tweets)
     total_time_seconds = 5 * 60 * 60 + 30 * 60  # 5 hours and 30 minutes in seconds
@@ -35,4 +37,9 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    top_ten_tweets = asyncio.run(get_trending_urls())  # Correctly await the coroutine
+    print("Top ten URLs with the most tweets:")
+    for data in top_ten_tweets:
+        print(
+            f"URL: {data['url']}, Tweets: {data['tweet_count']}, Title: {data['title']}, Abstract: {data['abstract']}, Subject Area: {data['subject_area']}"
+        )

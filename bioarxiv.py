@@ -25,54 +25,66 @@ print("Yesterday's date in ET:", yesterday_date)
 
 
 # Function to iterate through biorxiv pages and collect paper URLs
-def iterate_biorxiv_pages():
+async def iterate_biorxiv_pages():
     page_data = []
     page_number = 0
-    while True:
-        url = f"https://www.biorxiv.org/content/early/recent?page={page_number}"
-        print(url)
-        response = requests.get(url)
-        soup = BeautifulSoup(response.content, "html.parser")
+    max_concurrent_pages = 5  # Number of pages to open concurrently
 
-        # Get the date based on the X path
-        date_element = soup.select_one(
-            "#block-system-main > div > div > div > div:nth-child(2) > div:nth-child(1) > div > div > div > div > div:nth-child(1) > h3"
-        )
-        if not date_element:
-            break
-        date_text = date_element.get_text(strip=True)
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=False)
+        context = await browser.new_context()
 
-        # Reformat the date to match the format of our yesterday_date
-        page_date = datetime.strptime(date_text, "%B %d, %Y").strftime("%Y-%m-%d")
+        async def fetch_page(page_num):
+            url = f"https://www.biorxiv.org/content/early/recent?page={page_num}"
+            print(url)
+            page = await context.new_page()
 
-        print("page date: ", page_date)
+            retries = 3  # Number of retries for the goto call
+            for attempt in range(retries):
+                try:
+                    await page.goto(url)
+                    break  # Exit the retry loop if successful
+                except Exception as e:
+                    print(f"Error navigating to {url}: {e}")
+                    if attempt < retries - 1:
+                        print(f"Retrying {url} (attempt {attempt + 1}/{retries})")
+                    else:
+                        print(f"Failed to navigate to {url} after {retries} attempts")
+                        await page.close()
+                        return []  # Return empty if all retries fail
 
-        # Check if the date is older than the target date
-        if page_date < yesterday_date:
-            break
+            # Get the date based on the selector
+            date_element = await page.query_selector(
+                "#block-system-main > div > div > div > div:nth-child(2) > div:nth-child(1) > div > div > div > div > div:nth-child(1) > h3"
+            )
+            if not date_element:
+                await page.close()
+                return []  # Return empty if no date element found
+            date_text = await date_element.inner_text()
 
-        # Skip the page if the date is newer than the target date
-        if page_date > yesterday_date:
-            page_number += 1
-            continue
+            # Reformat the date to match the format of our yesterday_date
+            page_date = datetime.strptime(date_text.strip(), "%B %d, %Y").strftime("%Y-%m-%d")
 
-        # Extract all the URLs from the page
-        article_blocks = soup.find_all(
-            "div",
-            class_="highwire-cite highwire-cite-highwire-article highwire-citation-biorxiv-article-pap-list-overline clearfix",
-        )
+            print("page date: ", page_date)
 
-        for block in article_blocks:
-            title_element = block.find("span", class_="highwire-cite-title")
-            if title_element:
-                link_element = title_element.find(
-                    "a", class_="highwire-cite-linked-title"
-                )
-                if link_element and "href" in link_element.attrs:
-                    paper_url = "https://www.biorxiv.org" + link_element["href"]
-                    page_data.append(paper_url)
+            # Close the page after processing
+            await page.close()
+            return page_date
 
-        page_number += 1
+        while True:
+            tasks = [fetch_page(page_number + i) for i in range(max_concurrent_pages)]
+            results = await asyncio.gather(*tasks)
+
+            # Process results
+            for result in results:
+                if result and result < yesterday_date:
+                    return page_data  # Exit if any page date is older than yesterday
+                if result and result == yesterday_date:
+                    page_data.append(result)
+
+            page_number += max_concurrent_pages  # Move to the next batch of pages
+
+        await browser.close()
     return page_data
 
 
@@ -207,8 +219,8 @@ def get_top_ten_tweets(tweet_data_list):
 
 
 # Main function to run the entire process
-def get_trending_urls():
-    urls = iterate_biorxiv_pages()
+async def get_trending_urls():
+    urls = await iterate_biorxiv_pages()
     asyncio.run(main(urls))
     return get_top_ten_tweets(tweet_data_list)
 
