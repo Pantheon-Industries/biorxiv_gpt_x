@@ -43,7 +43,7 @@ def download_and_extract_paper_info(
             if len(tokens) > token_limit:
                 text = encoding.decode(tokens[:token_limit])
                 break
-        twitter_handles = process_paper(text)
+        #twitter_handles = process_paper(text)
         # this will either be an empty list or a list with twitter handles
         return {
             "title": title,

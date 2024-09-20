@@ -2,7 +2,7 @@ import tweepy
 import os
 
 
-def post_tweet(title, url, image_path, twitter_handles):
+def post_tweet(title, url, image_path):
     # Twitter API credentials
     consumer_key = os.getenv("TWITTER_API_KEY")
     consumer_secret = os.getenv("TWITTER_API_SECRET_KEY")
