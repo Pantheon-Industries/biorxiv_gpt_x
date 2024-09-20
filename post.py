@@ -38,9 +38,9 @@ def post_tweet(title, url, image_path, twitter_handles):
         tweet_text = f"🏷️:{title}\n\n"
 
         # Add Twitter handles if the list is not empty
-        if twitter_handles:
-            formatted_handles = " ".join([f"@{handle}" for handle in twitter_handles])
-            tweet_text += f"👤:{formatted_handles}\n\n"
+        # if twitter_handles:
+        #     formatted_handles = " ".join([f"@{handle}" for handle in twitter_handles])
+        #     tweet_text += f"👤:{formatted_handles}\n\n"
 
         tweet_text += f"🔗:{url}"
 

@@ -41,7 +41,7 @@ def download_and_extract_paper_info(
             if len(tokens) > token_limit:
                 text = encoding.decode(tokens[:token_limit])
                 break
-        twitter_handles = process_paper(text)
+        #twitter_handles = process_paper(text)
         # this will either be an empty list or a list with twitter handles
         return {
             "title": paper_info["title"],
@@ -49,7 +49,7 @@ def download_and_extract_paper_info(
                 "%Y-%m-%d"
             ),  # Assuming current date as publish date
             "full_text": text,
-            "twitter_handles": twitter_handles,
+            #"twitter_handles": twitter_handles,
             "subject_area": paper_info[
                 "subject_area"
             ],  # Add subject area to the returned dictionary
@@ -208,8 +208,8 @@ def create_image_from_paper_info(
         full_text = paper_details.get("full_text")
         summary = summarize_text(full_text)
         add_text_to_image(background_path, title, summary, subject_area, output_path)
-        twitter_handles = paper_details.get("twitter_handles")
-    return output_path, twitter_handles
+        #twitter_handles = paper_details.get("twitter_handles")
+    return output_path #twitter_handles
 
 
 # Example usage

@@ -8,7 +8,7 @@ from post import post_tweet
 async def main():
     top_ten_tweets = await get_trending_urls()  # Await the asynchronous function
     print("top_ten_tweets", top_ten_tweets)
-    twitter_handles = []
+    #twitter_handles = []
 
     num_tweets = len(top_ten_tweets)
     total_time_seconds = 5 * 60 * 60 + 30 * 60  # 5 hours and 30 minutes in seconds
@@ -23,13 +23,13 @@ async def main():
             "subject_area": tweet["subject_area"],
         }
 
-        output_path, twitter_handles = create_image_from_paper_info(paper_info)
+        output_path = create_image_from_paper_info(paper_info)
 
         # Post the tweet with the image
-        post_tweet(paper_info["title"], paper_info["url"], output_path, twitter_handles)
+        post_tweet(paper_info["title"], paper_info["url"], output_path)
 
         print(f"Image saved at: {output_path}")
-        print(f"Twitter handles: {twitter_handles}")
+        #print(f"Twitter handles: {twitter_handles}")
 
         # Sleep for the calculated interval
         await asyncio.sleep(sleep_interval)

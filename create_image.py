@@ -49,7 +49,7 @@ def download_and_extract_paper_info(
             "title": title,
             "publish_date": publish_date,
             "full_text": text,
-            "twitter_handles": twitter_handles,
+            #"twitter_handles": twitter_handles,
         }
     else:
         print(f"Failed to download paper. Status code: {response.status_code}")
@@ -205,8 +205,8 @@ def create_image_from_url(
         full_text = paper_info.get("full_text")
         summary = summarize_text(full_text)
         add_text_to_image(background_path, title, summary, publish_date, output_path)
-        twitter_handles = paper_info.get("twitter_handles")
-    return output_path, twitter_handles
+        #twitter_handles = paper_info.get("twitter_handles")
+    return output_path
 
 
 # Example usage
