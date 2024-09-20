@@ -96,10 +96,18 @@ def get_top_ten_tweets(tweet_data_list):
 async def fetch_and_parse(url, context, yesterday_date, tweet_data_list):
     print(f"Fetching URL: {url}")
     page = await context.new_page()
-    await page.goto(url, timeout=60000)
-    await page.wait_for_selector("#count_twitter", timeout=60000)
-    content = await page.content()
-    await page.close()
+    try:
+        await page.goto(url, timeout=60000)
+        await page.wait_for_selector("#count_twitter", timeout=60000)
+        content = await page.content()
+    except PlaywrightTimeoutError:
+        print(f"Timeout error while fetching {url}. Skipping this paper.")
+        return  # Skip this paper
+    except Exception as e:
+        print(f"An error occurred while navigating to {url}: {e}")
+        return  # Skip this paper
+    finally:
+        await page.close()
 
     soup = BeautifulSoup(content, "html.parser")
     date_element = soup.select_one("#block-system-main > div > div > div > div > div:nth-child(2) > div > div > div:nth-child(3) > div")
@@ -127,7 +135,7 @@ async def fetch_and_parse(url, context, yesterday_date, tweet_data_list):
         except ValueError as e:
             print(f"Error parsing date on {url}: {e}")
 
-# Main asynchronous function to handle multiple requests in batches
+
 async def main(all_doi_urls, yesterday_date, batch_size=50, delay=5):
     tweet_data_list = []
     async with async_playwright() as p:
