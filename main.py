@@ -8,6 +8,7 @@ from post import post_tweet
 async def main():
     top_ten_tweets = await get_trending_urls()  # Await the asynchronous function
     print("top_ten_tweets", top_ten_tweets)
+    twitter_handles = []
 
     num_tweets = len(top_ten_tweets)
     total_time_seconds = 5 * 60 * 60 + 30 * 60  # 5 hours and 30 minutes in seconds
