@@ -102,7 +102,7 @@ def add_text_to_image(
     draw = ImageDraw.Draw(background)
 
     title_font = ImageFont.truetype("fonts/Inika-Regular.ttf", 35 * scale_factor)
-    content_font = ImageFont.truetype("fonts/Inika-Regular.ttf", 20 * scale_factor)
+    content_font = ImageFont.truetype("fonts/Inika-Regular.ttf", 25 * scale_factor)
     date_font = ImageFont.truetype("fonts/Inika-Regular.ttf", 20 * scale_factor)
     arxiv_font = ImageFont.truetype("fonts/Larabieb.ttf", 50 * scale_factor)
 
