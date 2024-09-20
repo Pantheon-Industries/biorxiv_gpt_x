@@ -8,8 +8,7 @@ from post import post_tweet
 async def main():
     top_ten_tweets = await get_trending_urls()  # Await the asynchronous function
     print("top_ten_tweets", top_ten_tweets)
-    print("Execution stopped as per instructions.")
-    return
+
     #twitter_handles = []
 
     num_tweets = len(top_ten_tweets)
