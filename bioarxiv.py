@@ -54,7 +54,12 @@ async def extract_pagination_urls(complete_url):
                         href = f"https://www.biorxiv.org{href}"
                     pagination_urls.append(href)
         except PlaywrightTimeoutError:
-            print("Navigation timed out.")
+            print("Navigation timed out. Taking a screenshot...")
+            await page.screenshot(path='timeout_screenshot.png')  # Save screenshot on timeout
+            return []
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await page.screenshot(path='error_screenshot.png')  # Save screenshot on other errors
             return []
         finally:
             await browser.close()
