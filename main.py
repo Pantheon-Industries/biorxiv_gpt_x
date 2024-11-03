@@ -9,12 +9,6 @@ async def main():
     top_ten_tweets = await get_trending_urls()  # Await the asynchronous function
     print("top_ten_tweets", top_ten_tweets)
 
-    #twitter_handles = []
-
-    num_tweets = len(top_ten_tweets)
-    total_time_seconds = 5 * 60 * 60 + 30 * 60  # 5 hours and 30 minutes in seconds
-    sleep_interval = total_time_seconds / num_tweets if num_tweets > 0 else 0
-
     for tweet in top_ten_tweets:
         paper_info = {
             "url": tweet["url"],
@@ -31,10 +25,6 @@ async def main():
 
         print(f"Image saved at: {output_path}")
         #print(f"Twitter handles: {twitter_handles}")
-
-        # Sleep for the calculated interval
-        await asyncio.sleep(sleep_interval)
-
 
 # Entry point for the script
 if __name__ == "__main__":
